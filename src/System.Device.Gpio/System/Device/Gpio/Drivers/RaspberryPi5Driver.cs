@@ -59,7 +59,6 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     private readonly PinState?[] _pinModes;
     private uint* _registers;
     private GpioDriver? _interruptDriver;
-    private int? _interruptChipId;
 
     /// <summary>
     /// Creates an instance of the Raspberry Pi 5 RP1 GPIO driver.
@@ -158,8 +157,11 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     /// <inheritdoc />
     protected internal override void SetPinMode(int pinNumber, PinMode mode, PinValue initialValue)
     {
-        Write(pinNumber, initialValue);
         SetPinMode(pinNumber, mode);
+        if (mode == PinMode.Output)
+        {
+            Write(pinNumber, initialValue);
+        }
     }
 
     /// <inheritdoc />
@@ -246,11 +248,6 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     /// <inheritdoc />
     public override GpioChipInfo GetChipInfo()
     {
-        if (_interruptChipId.HasValue)
-        {
-            return new GpioChipInfo(_interruptChipId.Value, nameof(RaspberryPi5Driver), "RP1", PinCount);
-        }
-
         return new GpioChipInfo(0, nameof(RaspberryPi5Driver), "RP1", PinCount);
     }
 
@@ -427,7 +424,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
         {
             chips = LibGpiodDriver.GetAvailableChips();
         }
-        catch (Exception x) when (x is DllNotFoundException || x is PlatformNotSupportedException)
+        catch (Exception ex) when (ex is DllNotFoundException || ex is PlatformNotSupportedException)
         {
             chips = Array.Empty<GpioChipInfo>();
         }
@@ -435,14 +432,13 @@ public unsafe class RaspberryPi5Driver : GpioDriver
         GpioChipInfo? selectedChip = chips.FirstOrDefault(x => x.NumLines == PinCount);
         if (selectedChip != null)
         {
-            _interruptChipId = selectedChip.Id;
-            if (GpioDriver.TryCreate(() => (GpioDriver)new LibGpiodDriver(selectedChip.Id), out GpioDriver? gpioDriver))
+            if (GpioDriver.TryCreate(() => new LibGpiodDriver(selectedChip.Id), out LibGpiodDriver? gpioDriver))
             {
                 _interruptDriver = gpioDriver;
                 return;
             }
 
-            if (GpioDriver.TryCreate(() => (GpioDriver)new LibGpiodV2Driver(selectedChip.Id), out GpioDriver? gpioDriverV2))
+            if (GpioDriver.TryCreate(() => new LibGpiodV2Driver(selectedChip.Id), out LibGpiodV2Driver? gpioDriverV2))
             {
                 _interruptDriver = gpioDriverV2;
                 return;
@@ -469,14 +465,14 @@ public unsafe class RaspberryPi5Driver : GpioDriver
             int fileDescriptor = Interop.open(Rp1GpioMemoryFilePath, FileOpenFlags.O_RDWR | FileOpenFlags.O_SYNC);
             if (fileDescriptor == -1)
             {
-                int win32Error = Marshal.GetLastWin32Error();
+                int errorCode = Marshal.GetLastWin32Error();
                 string errorMessage = Marshal.GetLastPInvokeErrorMessage();
-                if (win32Error == ENOENT)
+                if (errorCode == ENOENT)
                 {
                     throw new PlatformNotSupportedException($"{Rp1GpioMemoryFilePath} is not available. This driver requires Raspberry Pi 5 RP1 GPIO access. Ensure the system is running on Raspberry Pi 5/CM5 hardware with a kernel exposing /dev/gpiomem0 and with sufficient permissions.");
                 }
 
-                string error = string.IsNullOrWhiteSpace(errorMessage) ? win32Error.ToString() : $"{win32Error} ({errorMessage})";
+                string error = string.IsNullOrWhiteSpace(errorMessage) ? errorCode.ToString() : $"{errorCode} ({errorMessage})";
                 throw new IOException($"Error {error} initializing the GPIO driver.");
             }
 
@@ -493,13 +489,16 @@ public unsafe class RaspberryPi5Driver : GpioDriver
 
     private void EnsurePinPreparedForInterrupts(int pinNumber)
     {
-        _interruptDriver!.OpenPin(pinNumber);
         if (_pinModes[pinNumber] is null)
         {
             _pinModes[pinNumber] = new PinState(GetPinModeFromHardware(pinNumber));
         }
 
-        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        if (!_pinModes[pinNumber]!.InUseByInterruptDriver)
+        {
+            _interruptDriver!.OpenPin(pinNumber);
+            _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        }
     }
 
     private class PinState
