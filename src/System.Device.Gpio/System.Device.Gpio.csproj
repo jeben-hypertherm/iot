@@ -13,5 +13,11 @@
     </PackageReference>
     <Content Include="$(RepoRoot)README-nuget.md" Pack="true" Visible="false" PackagePath="\README.md" />
   </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>System.Device.Gpio.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
   
 </Project>
