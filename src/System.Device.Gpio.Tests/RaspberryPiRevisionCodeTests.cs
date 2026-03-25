@@ -8,7 +8,7 @@ namespace System.Device.Gpio.Tests;
 
 public class RaspberryPiRevisionCodeTests
 {
-    private static readonly Type s_revisionCodeType = typeof(GpioController).Assembly.GetType("System.Device.Gpio.RaspberryPiRevisionCode", throwOnError: true)!;
+    private static readonly Type s_revisionCodeType = GetRevisionCodeType();
 
     [Theory]
     [InlineData("2082", "RaspberryPi3B")]
@@ -77,5 +77,16 @@ public class RaspberryPiRevisionCodeTests
     private static object? GetProperty(object instance, string propertyName)
     {
         return s_revisionCodeType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!.GetValue(instance);
+    }
+
+    private static Type GetRevisionCodeType()
+    {
+        Type? revisionCodeType = typeof(GpioController).Assembly.GetType("System.Device.Gpio.RaspberryPiRevisionCode", throwOnError: false);
+        if (revisionCodeType is null)
+        {
+            throw new InvalidOperationException("Could not find internal type System.Device.Gpio.RaspberryPiRevisionCode. The parser class may have been moved or renamed.");
+        }
+
+        return revisionCodeType;
     }
 }

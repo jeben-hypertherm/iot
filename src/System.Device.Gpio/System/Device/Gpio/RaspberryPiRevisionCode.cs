@@ -14,9 +14,10 @@ internal sealed class RaspberryPiRevisionCode
     private const int WarrantyBit24Mask = 1 << 24;
     private const int WarrantyBit25Mask = 1 << 25;
 
-    private RaspberryPiRevisionCode(int rawValue)
+    private RaspberryPiRevisionCode(int rawValue, bool isValid = true)
     {
         RawValue = rawValue;
+        IsValid = isValid;
         IsNewStyle = (rawValue & NewStyleFlag) != 0;
         IsWarrantyBit24Set = (rawValue & WarrantyBit24Mask) != 0;
         IsWarrantyBit25Set = (rawValue & WarrantyBit25Mask) != 0;
@@ -34,47 +35,16 @@ internal sealed class RaspberryPiRevisionCode
         {
             BoardRevision = rawValue & 0xF;
             BoardTypeCode = rawValue & 0xFFFF;
-            Processor = ProcessorType.Unknown;
-            Manufacturer = ManufacturerType.Unknown;
-            MemorySize = MemorySizeType.Unknown;
+            Processor = RaspberryBoardInfo.ProcessorType.Unknown;
+            Manufacturer = RaspberryBoardInfo.ManufacturerType.Unknown;
+            MemorySize = RaspberryBoardInfo.MemorySizeType.Unknown;
             BoardModel = DecodeOldStyleModel(rawValue & 0xFFFF);
         }
     }
 
-    internal enum ProcessorType
-    {
-        Unknown,
-        Bcm2835,
-        Bcm2836,
-        Bcm2837,
-        Bcm2711,
-        Bcm2712,
-    }
-
-    internal enum ManufacturerType
-    {
-        Unknown,
-        SonyUk,
-        Egoman,
-        Embest,
-        SonyJapan,
-        Embest2,
-        Stadium,
-    }
-
-    internal enum MemorySizeType
-    {
-        Unknown,
-        Mb256,
-        Mb512,
-        Gb1,
-        Gb2,
-        Gb4,
-        Gb8,
-        Gb16,
-    }
-
     internal int RawValue { get; }
+
+    internal bool IsValid { get; }
 
     internal bool IsNewStyle { get; }
 
@@ -82,73 +52,75 @@ internal sealed class RaspberryPiRevisionCode
 
     internal bool IsWarrantyBit25Set { get; }
 
-    internal bool IsOverclocked => (RawValue & unchecked((int)0xFFFF0000)) != 0;
+    internal bool HasWarrantyBitsSet => IsWarrantyBit24Set || IsWarrantyBit25Set;
 
     internal int BoardRevision { get; }
 
     internal int BoardTypeCode { get; }
 
-    internal ProcessorType Processor { get; }
+    internal RaspberryBoardInfo.ProcessorType Processor { get; }
 
-    internal ManufacturerType Manufacturer { get; }
+    internal RaspberryBoardInfo.ManufacturerType Manufacturer { get; }
 
-    internal MemorySizeType MemorySize { get; }
+    internal RaspberryBoardInfo.MemorySizeType MemorySize { get; }
 
     internal RaspberryBoardInfo.Model BoardModel { get; }
 
-    internal static bool TryParse(string revisionCode, out RaspberryPiRevisionCode? parsed)
+    internal static bool TryParse(string revisionCode, out RaspberryPiRevisionCode parsed)
     {
-        parsed = null;
+        parsed = Invalid;
         if (string.IsNullOrWhiteSpace(revisionCode))
         {
             return false;
         }
 
-        if (!int.TryParse(revisionCode, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int firmware))
+        if (!int.TryParse(revisionCode, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int parsedValue))
         {
             return false;
         }
 
-        parsed = new RaspberryPiRevisionCode(firmware);
+        parsed = new RaspberryPiRevisionCode(parsedValue);
         return true;
     }
+
+    internal static RaspberryPiRevisionCode Invalid { get; } = new RaspberryPiRevisionCode(0, isValid: false);
 
     internal static RaspberryPiRevisionCode Parse(int rawValue)
     {
         return new RaspberryPiRevisionCode(rawValue);
     }
 
-    private static ProcessorType DecodeProcessor(int code) => code switch
+    private static RaspberryBoardInfo.ProcessorType DecodeProcessor(int code) => code switch
     {
-        0 => ProcessorType.Bcm2835,
-        1 => ProcessorType.Bcm2836,
-        2 => ProcessorType.Bcm2837,
-        3 => ProcessorType.Bcm2711,
-        4 => ProcessorType.Bcm2712,
-        _ => ProcessorType.Unknown,
+        0 => RaspberryBoardInfo.ProcessorType.Bcm2835,
+        1 => RaspberryBoardInfo.ProcessorType.Bcm2836,
+        2 => RaspberryBoardInfo.ProcessorType.Bcm2837,
+        3 => RaspberryBoardInfo.ProcessorType.Bcm2711,
+        4 => RaspberryBoardInfo.ProcessorType.Bcm2712,
+        _ => RaspberryBoardInfo.ProcessorType.Unknown,
     };
 
-    private static ManufacturerType DecodeManufacturer(int code) => code switch
+    private static RaspberryBoardInfo.ManufacturerType DecodeManufacturer(int code) => code switch
     {
-        0 => ManufacturerType.SonyUk,
-        1 => ManufacturerType.Egoman,
-        2 => ManufacturerType.Embest,
-        3 => ManufacturerType.SonyJapan,
-        4 => ManufacturerType.Embest2,
-        5 => ManufacturerType.Stadium,
-        _ => ManufacturerType.Unknown,
+        0 => RaspberryBoardInfo.ManufacturerType.SonyUk,
+        1 => RaspberryBoardInfo.ManufacturerType.Egoman,
+        2 => RaspberryBoardInfo.ManufacturerType.Embest,
+        3 => RaspberryBoardInfo.ManufacturerType.SonyJapan,
+        4 => RaspberryBoardInfo.ManufacturerType.Embest2,
+        5 => RaspberryBoardInfo.ManufacturerType.Stadium,
+        _ => RaspberryBoardInfo.ManufacturerType.Unknown,
     };
 
-    private static MemorySizeType DecodeMemorySize(int code) => code switch
+    private static RaspberryBoardInfo.MemorySizeType DecodeMemorySize(int code) => code switch
     {
-        0 => MemorySizeType.Mb256,
-        1 => MemorySizeType.Mb512,
-        2 => MemorySizeType.Gb1,
-        3 => MemorySizeType.Gb2,
-        4 => MemorySizeType.Gb4,
-        5 => MemorySizeType.Gb8,
-        6 => MemorySizeType.Gb16,
-        _ => MemorySizeType.Unknown,
+        0 => RaspberryBoardInfo.MemorySizeType.Mb256,
+        1 => RaspberryBoardInfo.MemorySizeType.Mb512,
+        2 => RaspberryBoardInfo.MemorySizeType.Gb1,
+        3 => RaspberryBoardInfo.MemorySizeType.Gb2,
+        4 => RaspberryBoardInfo.MemorySizeType.Gb4,
+        5 => RaspberryBoardInfo.MemorySizeType.Gb8,
+        6 => RaspberryBoardInfo.MemorySizeType.Gb16,
+        _ => RaspberryBoardInfo.MemorySizeType.Unknown,
     };
 
     private static RaspberryBoardInfo.Model DecodeNewStyleModel(int boardTypeCode) => boardTypeCode switch
@@ -169,9 +141,11 @@ internal sealed class RaspberryPiRevisionCode
         0x12 => RaspberryBoardInfo.Model.RaspberryPiZero2W,
         0x13 => RaspberryBoardInfo.Model.RaspberryPi400,
         0x14 => RaspberryBoardInfo.Model.RaspberryPiComputeModule4,
+        // 0x14 and 0x15 are both CM4 board type codes. Memory and revision differences are exposed through decoded metadata fields.
         0x15 => RaspberryBoardInfo.Model.RaspberryPiComputeModule4,
         0x17 => RaspberryBoardInfo.Model.RaspberryPi5,
         0x18 => RaspberryBoardInfo.Model.RaspberryPiComputeModule5,
+        // 0x17 and 0x19 are both Pi 5 board type codes. Memory and revision differences are exposed through decoded metadata fields.
         0x19 => RaspberryBoardInfo.Model.RaspberryPi5,
         0x1A => RaspberryBoardInfo.Model.RaspberryPiComputeModule5Lite,
         _ => RaspberryBoardInfo.Model.Unknown,
@@ -180,7 +154,7 @@ internal sealed class RaspberryPiRevisionCode
     private static RaspberryBoardInfo.Model DecodeOldStyleModel(int boardTypeCode) => boardTypeCode switch
     {
         0x2 or 0x3 => RaspberryBoardInfo.Model.RaspberryPiBRev1,
-        0x4 or 0x5 or 0x6 or 0xD or 0xE or 0xF => RaspberryBoardInfo.Model.RaspberryPiBRev2,
+        0x4 or 0x5 or 0x6 or 0xd or 0xe or 0xf => RaspberryBoardInfo.Model.RaspberryPiBRev2,
         0x7 or 0x8 or 0x9 => RaspberryBoardInfo.Model.RaspberryPiA,
         0x10 or 0x13 or 0x32 => RaspberryBoardInfo.Model.RaspberryPiBPlus,
         0x11 or 0x14 or 0x61 => RaspberryBoardInfo.Model.RaspberryPiComputeModule,
@@ -190,15 +164,15 @@ internal sealed class RaspberryPiRevisionCode
         0xC1 => RaspberryBoardInfo.Model.RaspberryPiZeroW,
         0x2120 => RaspberryBoardInfo.Model.RaspberryPiZero2W,
         0x2082 or 0x2083 => RaspberryBoardInfo.Model.RaspberryPi3B,
-        0x20D3 or 0x20D4 => RaspberryBoardInfo.Model.RaspberryPi3BPlus,
-        0x20E0 or 0x20E1 => RaspberryBoardInfo.Model.RaspberryPi3APlus,
-        0x20A0 or 0x2100 => RaspberryBoardInfo.Model.RaspberryPiComputeModule3,
+        0x20d3 or 0x20d4 => RaspberryBoardInfo.Model.RaspberryPi3BPlus,
+        0x20e0 or 0x20e1 => RaspberryBoardInfo.Model.RaspberryPi3APlus,
+        0x20a0 or 0x2100 => RaspberryBoardInfo.Model.RaspberryPiComputeModule3,
         0x3111 or 0x3112 or 0x3114 or 0x3115 => RaspberryBoardInfo.Model.RaspberryPi4,
         0x3140 or 0x3141 => RaspberryBoardInfo.Model.RaspberryPiComputeModule4,
         0x3130 or 0x3131 => RaspberryBoardInfo.Model.RaspberryPi400,
         0x4170 => RaspberryBoardInfo.Model.RaspberryPi5,
         0x4180 => RaspberryBoardInfo.Model.RaspberryPiComputeModule5,
-        0x41A0 => RaspberryBoardInfo.Model.RaspberryPiComputeModule5Lite,
+        0x41a0 => RaspberryBoardInfo.Model.RaspberryPiComputeModule5Lite,
         _ => RaspberryBoardInfo.Model.Unknown,
     };
 }

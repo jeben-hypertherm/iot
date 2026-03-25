@@ -11,6 +11,39 @@ namespace System.Device.Gpio;
 /// </summary>
 internal class RaspberryBoardInfo
 {
+    internal enum ProcessorType
+    {
+        Unknown,
+        Bcm2835,
+        Bcm2836,
+        Bcm2837,
+        Bcm2711,
+        Bcm2712,
+    }
+
+    internal enum ManufacturerType
+    {
+        Unknown,
+        SonyUk,
+        Egoman,
+        Embest,
+        SonyJapan,
+        Embest2,
+        Stadium,
+    }
+
+    internal enum MemorySizeType
+    {
+        Unknown,
+        Mb256,
+        Mb512,
+        Gb1,
+        Gb2,
+        Gb4,
+        Gb8,
+        Gb16,
+    }
+
     /// <summary>
     /// The Raspberry Pi model.
     /// </summary>
@@ -134,15 +167,14 @@ internal class RaspberryBoardInfo
         ProcessorName = _settings.TryGetValue("Hardware", out string? hardware) && hardware is object ? hardware : string.Empty;
 
         if (_settings.TryGetValue("Revision", out string? revision)
-            && RaspberryPiRevisionCode.TryParse(revision, out RaspberryPiRevisionCode? parsedRevisionCode)
-            && parsedRevisionCode is not null)
+            && RaspberryPiRevisionCode.TryParse(revision, out RaspberryPiRevisionCode parsedRevisionCode))
         {
             _revisionCode = parsedRevisionCode;
             Firmware = _revisionCode.RawValue;
         }
         else
         {
-            _revisionCode = RaspberryPiRevisionCode.Parse(0);
+            _revisionCode = RaspberryPiRevisionCode.Invalid;
         }
 
         if (_settings.TryGetValue("Serial", out string? serial))
@@ -151,7 +183,6 @@ internal class RaspberryBoardInfo
         }
 
         BoardModel = _revisionCode.BoardModel;
-        IsNewStyleRevisionCode = _revisionCode.IsNewStyle;
     }
 
     #endregion
@@ -164,12 +195,9 @@ internal class RaspberryBoardInfo
     }
 
     /// <summary>
-    /// Gets whether the firmware revision is represented using the new-style revision code format.
+    /// Gets whether the revision code is represented using the new-style format.
     /// </summary>
-    public bool IsNewStyleRevisionCode
-    {
-        get;
-    }
+    public bool IsNewStyleRevisionCode => _revisionCode.IsNewStyle;
 
     /// <summary>
     /// Gets the revision field from the revision code.
@@ -184,17 +212,17 @@ internal class RaspberryBoardInfo
     /// <summary>
     /// Gets the board processor decoded from the revision code.
     /// </summary>
-    public RaspberryPiRevisionCode.ProcessorType BoardProcessor => _revisionCode.Processor;
+    public ProcessorType BoardProcessor => _revisionCode.Processor;
 
     /// <summary>
     /// Gets the board manufacturer decoded from the revision code.
     /// </summary>
-    public RaspberryPiRevisionCode.ManufacturerType BoardManufacturer => _revisionCode.Manufacturer;
+    public ManufacturerType BoardManufacturer => _revisionCode.Manufacturer;
 
     /// <summary>
     /// Gets the board memory size decoded from the revision code.
     /// </summary>
-    public RaspberryPiRevisionCode.MemorySizeType BoardMemorySize => _revisionCode.MemorySize;
+    public MemorySizeType BoardMemorySize => _revisionCode.MemorySize;
 
     /// <summary>
     /// Gets the processor name.
@@ -233,7 +261,7 @@ internal class RaspberryBoardInfo
     {
         get
         {
-            return _revisionCode.IsOverclocked;
+            return _revisionCode.HasWarrantyBitsSet;
         }
     }
 
