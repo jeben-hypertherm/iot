@@ -145,7 +145,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
             WriteRegister(sysRioOeClearOffset, 1U << offsetInBank);
         }
 
-        if (_pinModes[pinNumber] is object)
+        if (_pinModes[pinNumber] is not null)
         {
             _pinModes[pinNumber]!.CurrentPinMode = mode;
         }
@@ -212,9 +212,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     {
         ValidatePinNumber(pinNumber);
         InitializeInterruptDriver();
-
-        _interruptDriver!.OpenPin(pinNumber);
-        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        EnsurePinPreparedForInterrupts(pinNumber);
         return _interruptDriver.WaitForEvent(pinNumber, eventTypes, cancellationToken);
     }
 
@@ -223,9 +221,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     {
         ValidatePinNumber(pinNumber);
         InitializeInterruptDriver();
-
-        _interruptDriver!.OpenPin(pinNumber);
-        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        EnsurePinPreparedForInterrupts(pinNumber);
         return _interruptDriver.WaitForEventAsync(pinNumber, eventTypes, cancellationToken);
     }
 
@@ -234,9 +230,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     {
         ValidatePinNumber(pinNumber);
         InitializeInterruptDriver();
-
-        _interruptDriver!.OpenPin(pinNumber);
-        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        EnsurePinPreparedForInterrupts(pinNumber);
         _interruptDriver.AddCallbackForPinValueChangedEvent(pinNumber, eventTypes, callback);
     }
 
@@ -245,9 +239,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
     {
         ValidatePinNumber(pinNumber);
         InitializeInterruptDriver();
-
-        _interruptDriver!.OpenPin(pinNumber);
-        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
+        EnsurePinPreparedForInterrupts(pinNumber);
         _interruptDriver.RemoveCallbackForPinValueChangedEvent(pinNumber, callback);
     }
 
@@ -411,7 +403,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
             }
         }
 
-        if (_pinModes[pinNumber] is object)
+        if (_pinModes[pinNumber] is not null)
         {
             _pinModes[pinNumber]!.CurrentPinMode = mode;
         }
@@ -444,13 +436,13 @@ public unsafe class RaspberryPi5Driver : GpioDriver
         if (selectedChip != null)
         {
             _interruptChipId = selectedChip.Id;
-            if (TryCreate(() => (GpioDriver)new LibGpiodDriver(selectedChip.Id), out GpioDriver? gpioDriver))
+            if (GpioDriver.TryCreate(() => (GpioDriver)new LibGpiodDriver(selectedChip.Id), out GpioDriver? gpioDriver))
             {
                 _interruptDriver = gpioDriver;
                 return;
             }
 
-            if (TryCreate(() => (GpioDriver)new LibGpiodV2Driver(selectedChip.Id), out GpioDriver? gpioDriverV2))
+            if (GpioDriver.TryCreate(() => (GpioDriver)new LibGpiodV2Driver(selectedChip.Id), out GpioDriver? gpioDriverV2))
             {
                 _interruptDriver = gpioDriverV2;
                 return;
@@ -481,7 +473,7 @@ public unsafe class RaspberryPi5Driver : GpioDriver
                 string errorMessage = Marshal.GetLastPInvokeErrorMessage();
                 if (win32Error == ENOENT)
                 {
-                    throw new PlatformNotSupportedException($"{Rp1GpioMemoryFilePath} is not available. This driver requires Raspberry Pi 5 RP1 GPIO access.");
+                    throw new PlatformNotSupportedException($"{Rp1GpioMemoryFilePath} is not available. This driver requires Raspberry Pi 5 RP1 GPIO access. Ensure the system is running on Raspberry Pi 5/CM5 hardware with a kernel exposing /dev/gpiomem0 and with sufficient permissions.");
                 }
 
                 string error = string.IsNullOrWhiteSpace(errorMessage) ? win32Error.ToString() : $"{win32Error} ({errorMessage})";
@@ -492,11 +484,22 @@ public unsafe class RaspberryPi5Driver : GpioDriver
             Interop.close(fileDescriptor);
             if (mapPointer.ToInt64() == -1)
             {
-                throw new IOException($"Error {ExceptionHelper.GetLastErrorMessage()} initializing the GPIO driver.");
+                throw new IOException($"Error {Marshal.GetLastPInvokeErrorMessage()} initializing the GPIO driver.");
             }
 
             _registers = (uint*)mapPointer;
         }
+    }
+
+    private void EnsurePinPreparedForInterrupts(int pinNumber)
+    {
+        _interruptDriver!.OpenPin(pinNumber);
+        if (_pinModes[pinNumber] is null)
+        {
+            _pinModes[pinNumber] = new PinState(GetPinModeFromHardware(pinNumber));
+        }
+
+        _pinModes[pinNumber]!.InUseByInterruptDriver = true;
     }
 
     private class PinState
