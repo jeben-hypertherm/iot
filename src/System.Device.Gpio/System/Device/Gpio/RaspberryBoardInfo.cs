@@ -180,31 +180,7 @@ internal class RaspberryBoardInfo
     private Model GetBoardModel()
     {
         RaspberryPiRevisionCode revisionCode = RaspberryPiRevisionCode.Create(Firmware);
-        Model model = revisionCode.GetBoardModel();
-        if (model != Model.Unknown)
-        {
-            return model;
-        }
-
-        return (Firmware & 0xFFFF) switch
-        {
-            0x1040 or 0x1041 or 0x2042 => Model.RaspberryPi2B,
-            0x0092 or 0x0093 => Model.RaspberryPiZero,
-            0x00C1 => Model.RaspberryPiZeroW,
-            0x2120 => Model.RaspberryPiZero2W,
-            0x2082 or 0x2083 => Model.RaspberryPi3B,
-            0x20D3 or 0x20D4 => Model.RaspberryPi3BPlus,
-            0x20E0 => Model.RaspberryPi3APlus,
-            0x20E1 => Model.RaspberryPi3APlus, // 3A, rev 1.1
-            0x20A0 or 0x2100 => Model.RaspberryPiComputeModule3,
-            0x3111 or 0x3112 or 0x3114 or 0x3115 => Model.RaspberryPi4,
-            0x3140 or 0x3141 => Model.RaspberryPiComputeModule4,
-            0x3130 or 0x3131 => Model.RaspberryPi400,
-            0x4170 => Model.RaspberryPi5,
-            0x4180 => Model.RaspberryPiComputeModule5,
-            0x41A0 => Model.RaspberryPiComputeModule5Lite,
-            _ => Model.Unknown,
-        };
+        return revisionCode.GetBoardModel();
     }
 
     /// <summary>
