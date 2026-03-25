@@ -10,7 +10,7 @@ public class RaspberryPiRevisionCodeTests
     [Theory]
     [InlineData(0x0002, false, 0x02, RaspberryBoardInfo.Model.RaspberryPiBRev1)]
     [InlineData(0x0015, false, 0x15, RaspberryBoardInfo.Model.RaspberryPiAPlus)]
-    [InlineData(0x00C1, false, 0xC1, RaspberryBoardInfo.Model.Unknown)]
+    [InlineData(0x00C1, false, 0xC1, RaspberryBoardInfo.Model.RaspberryPiZeroW)]
     public void OldStyleCodesAreMappedFromLegacyRevision(int firmware, bool expectedIsNewStyle, int expectedLegacyRevision, RaspberryBoardInfo.Model expectedModel)
     {
         RaspberryPiRevisionCode revision = RaspberryPiRevisionCode.Create(firmware);
