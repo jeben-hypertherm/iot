@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 
 namespace System.Device.Gpio;
@@ -12,6 +11,39 @@ namespace System.Device.Gpio;
 /// </summary>
 internal class RaspberryBoardInfo
 {
+    internal enum ProcessorType
+    {
+        Unknown,
+        Bcm2835,
+        Bcm2836,
+        Bcm2837,
+        Bcm2711,
+        Bcm2712,
+    }
+
+    internal enum ManufacturerType
+    {
+        Unknown,
+        SonyUk,
+        Egoman,
+        Embest,
+        SonyJapan,
+        Embest2,
+        Stadium,
+    }
+
+    internal enum MemorySizeType
+    {
+        Unknown,
+        Mb256,
+        Mb512,
+        Gb1,
+        Gb2,
+        Gb4,
+        Gb8,
+        Gb16,
+    }
+
     /// <summary>
     /// The Raspberry Pi model.
     /// </summary>
@@ -126,6 +158,7 @@ internal class RaspberryBoardInfo
     #region Fields
 
     private readonly Dictionary<string, string> _settings;
+    private readonly RaspberryPiRevisionCode _revisionCode;
 
     private RaspberryBoardInfo(Dictionary<string, string> settings)
     {
@@ -134,10 +167,14 @@ internal class RaspberryBoardInfo
         ProcessorName = _settings.TryGetValue("Hardware", out string? hardware) && hardware is object ? hardware : string.Empty;
 
         if (_settings.TryGetValue("Revision", out string? revision)
-            && revision is { Length: > 0 }
-            && int.TryParse(revision, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int firmware))
+            && RaspberryPiRevisionCode.TryParse(revision, out RaspberryPiRevisionCode parsedRevisionCode))
         {
-            Firmware = firmware;
+            _revisionCode = parsedRevisionCode;
+            Firmware = _revisionCode.RawValue;
+        }
+        else
+        {
+            _revisionCode = RaspberryPiRevisionCode.Invalid;
         }
 
         if (_settings.TryGetValue("Serial", out string? serial))
@@ -145,7 +182,7 @@ internal class RaspberryBoardInfo
             SerialNumber = serial;
         }
 
-        BoardModel = GetBoardModel();
+        BoardModel = _revisionCode.BoardModel;
     }
 
     #endregion
@@ -158,35 +195,34 @@ internal class RaspberryBoardInfo
     }
 
     /// <summary>
-    /// Get board model from firmware revision
-    /// See http://www.raspberrypi-spy.co.uk/2012/09/checking-your-raspberry-pi-board-version/ for information.
+    /// Gets whether the revision code is represented using the new-style format.
     /// </summary>
-    /// <returns></returns>
-    private Model GetBoardModel() => (Firmware & 0xFFFF) switch
-    {
-        0x2 or 0x3 => Model.RaspberryPiBRev1,
-        0x4 or 0x5 or 0x6 or 0xd or 0xe or 0xf => Model.RaspberryPiBRev2,
-        0x7 or 0x8 or 0x9 => Model.RaspberryPiA,
-        0x10 or 0x13 or 0x32 => Model.RaspberryPiBPlus,
-        0x11 or 0x14 or 0x61 => Model.RaspberryPiComputeModule,
-        0x12 or 0x15 or 0x21 => Model.RaspberryPiAPlus,
-        0x1040 or 0x1041 or 0x2042 => Model.RaspberryPi2B,
-        0x0092 or 0x0093 => Model.RaspberryPiZero,
-        0x00C1 => Model.RaspberryPiZeroW,
-        0x2120 => Model.RaspberryPiZero2W,
-        0x2082 or 0x2083 => Model.RaspberryPi3B,
-        0x20D3 or 0x20D4 => Model.RaspberryPi3BPlus,
-        0x20E0 => Model.RaspberryPi3APlus,
-        0x20E1 => Model.RaspberryPi3APlus, // 3A, rev 1.1
-        0x20A0 or 0x2100 => Model.RaspberryPiComputeModule3,
-        0x3111 or 0x3112 or 0x3114 or 0x3115 => Model.RaspberryPi4,
-        0x3140 or 0x3141 => Model.RaspberryPiComputeModule4,
-        0x3130 or 0x3131 => Model.RaspberryPi400,
-        0x4170 => Model.RaspberryPi5,
-        0x4180 => Model.RaspberryPiComputeModule5,
-        0x41a0 => Model.RaspberryPiComputeModule5Lite,
-        _ => Model.Unknown,
-    };
+    public bool IsNewStyleRevisionCode => _revisionCode.IsNewStyle;
+
+    /// <summary>
+    /// Gets the revision field from the revision code.
+    /// </summary>
+    public int BoardRevision => _revisionCode.BoardRevision;
+
+    /// <summary>
+    /// Gets the board type code from the revision code.
+    /// </summary>
+    public int BoardTypeCode => _revisionCode.BoardTypeCode;
+
+    /// <summary>
+    /// Gets the board processor decoded from the revision code.
+    /// </summary>
+    public ProcessorType BoardProcessor => _revisionCode.Processor;
+
+    /// <summary>
+    /// Gets the board manufacturer decoded from the revision code.
+    /// </summary>
+    public ManufacturerType BoardManufacturer => _revisionCode.Manufacturer;
+
+    /// <summary>
+    /// Gets the board memory size decoded from the revision code.
+    /// </summary>
+    public MemorySizeType BoardMemorySize => _revisionCode.MemorySize;
 
     /// <summary>
     /// Gets the processor name.
@@ -225,9 +261,19 @@ internal class RaspberryBoardInfo
     {
         get
         {
-            return (Firmware & 0xFFFF0000) != 0;
+            return _revisionCode.HasWarrantyBitsSet;
         }
     }
+
+    /// <summary>
+    /// Gets a value indicating whether warranty bit 24 is set in the revision code.
+    /// </summary>
+    public bool IsWarrantyBit24Set => _revisionCode.IsWarrantyBit24Set;
+
+    /// <summary>
+    /// Gets a value indicating whether warranty bit 25 is set in the revision code.
+    /// </summary>
+    public bool IsWarrantyBit25Set => _revisionCode.IsWarrantyBit25Set;
 
     #endregion
 
